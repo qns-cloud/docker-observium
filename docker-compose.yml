@@ -7,7 +7,22 @@ version: '3.8'
 services:
   db:
     image: mariadb:11.6
-    command: --max_allowed_packet=64M --skip-name-resolve --transaction-isolation=READ-COMMITTED --binlog-format=ROW --innodb-file-per-table=1 --default-storage-engine=InnoDB
+    command: >
+      --max_allowed_packet=64M 
+      --skip-name-resolve 
+      --transaction-isolation=READ-COMMITTED 
+      --binlog-format=ROW 
+      --innodb-file-per-table=1 
+      --default-storage-engine=InnoDB
+      --innodb-buffer-pool-size=128M 
+      --innodb-log-file-size=32M 
+      --innodb-flush-log-at-trx-commit=2
+      --interactive-timeout=600 
+      --wait-timeout=600
+      --max-connections=100
+      --query-cache-type=0
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
     init: true
     tty: true
     stop_grace_period: 1m
@@ -22,7 +37,6 @@ services:
     volumes:
       - observium_mysql_data:/var/lib/mysql
       - observium_mysql_init:/docker-entrypoint-initdb.d
-      - ./mariadb-config/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
     networks:
       - observium_network
     deploy:
