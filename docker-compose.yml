@@ -8,21 +8,22 @@ services:
   db:
     image: mariadb:11.6
     command: >
-      --max_allowed_packet=64M 
+      --max_allowed_packet=32M 
       --skip-name-resolve 
       --transaction-isolation=READ-COMMITTED 
       --binlog-format=ROW 
       --innodb-file-per-table=1 
       --default-storage-engine=InnoDB
-      --innodb-buffer-pool-size=128M 
-      --innodb-log-file-size=32M 
+      --innodb-buffer-pool-size=64M 
+      --innodb-log-file-size=16M 
       --innodb-flush-log-at-trx-commit=2
       --interactive-timeout=600 
       --wait-timeout=600
-      --max-connections=100
+      --max-connections=50
       --query-cache-type=0
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
+      --performance-schema=OFF
     init: true
     tty: true
     stop_grace_period: 1m
@@ -46,6 +47,11 @@ services:
         condition: any
         delay: 30s
         max_attempts: 10
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
       labels:
         - "com.docker.stack.namespace=${STACK_NAME:-observium}"
         - "com.docker.swarm.service.name=observium_db"
@@ -58,7 +64,7 @@ services:
 
   app:
     image: mbixtech/observium:24.12
-    entrypoint: ["/bin/bash", "-c", "echo 'Waiting for database to be ready...' && until (echo > /dev/tcp/$$OBSERVIUM_DB_HOST/3306) >/dev/null 2>&1; do sleep 5; echo 'Waiting for database connection...'; done && echo 'Database is reachable!' && sleep 10 && echo 'Waiting for database initialization...' && sleep 20 && echo 'Starting Observium application' && /entrypoint.sh"]
+    entrypoint: ["/bin/bash", "-c", "echo 'Waiting for database to be ready...' && until (echo > /dev/tcp/$$OBSERVIUM_DB_HOST/3306) >/dev/null 2>&1; do sleep 10; echo 'Waiting for database connection...'; done && echo 'Database is reachable!' && sleep 20 && echo 'Waiting for database initialization...' && sleep 30 && echo 'Starting Observium application' && /entrypoint.sh"]
     environment:
       OBSERVIUM_ADMIN_USER: ${OBSERVIUM_ADMIN_USER:-admin}
       OBSERVIUM_ADMIN_PASS: ${OBSERVIUM_ADMIN_PASS:-passw0rd}
@@ -82,6 +88,11 @@ services:
         condition: any
         delay: 30s
         max_attempts: 10
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
       labels:
         - "com.docker.stack.namespace=${STACK_NAME:-observium}"
         - "com.docker.swarm.service.name=observium_app"
@@ -89,10 +100,10 @@ services:
       - db
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/"]
-      interval: 1m
-      timeout: 20s
-      retries: 5
-      start_period: 120s
+      interval: 2m
+      timeout: 30s
+      retries: 10
+      start_period: 5m
 
 networks:
   observium_network:
