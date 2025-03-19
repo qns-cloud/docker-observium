@@ -1,43 +1,91 @@
-# Docker Compose file for Observium
+# Docker Compose file for Observium - Portainer-ready
 # Maintained by somsakc@hotmail.com
+# Modified for Portainer deployment on Docker Swarm with persistent volumes
+
+version: '3.8'
 
 services:
   db:
     image: mariadb:11.7
     environment:
-      - MYSQL_ROOT_PASSWORD=passw0rd
-      - MYSQL_USER=observium
-      - MYSQL_PASSWORD=passw0rd
-      - MYSQL_DATABASE=observium
-      - TZ=Asia/Bangkok
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-passw0rd}
+      MYSQL_USER: ${MYSQL_USER:-observium}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-passw0rd}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-observium}
+      TZ: ${TZ:-Asia/Bangkok}
     volumes:
-      - ./data:/var/lib/mysql
+      - observium_mysql_data:/var/lib/mysql
     networks:
-      - back-tier
-    restart: unless-stopped
+      - observium_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+      labels:
+        - "com.docker.stack.namespace=${STACK_NAME:-observium}"
+        - "com.docker.swarm.service.name=observium_db"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   app:
     image: mbixtech/observium:24.12
     environment:
-      - OBSERVIUM_ADMIN_USER=admin
-      - OBSERVIUM_ADMIN_PASS=passw0rd
-      - OBSERVIUM_DB_HOST=db
-      - OBSERVIUM_DB_NAME=observium
-      - OBSERVIUM_DB_USER=observium
-      - OBSERVIUM_DB_PASS=passw0rd
-      - OBSERVIUM_BASE_URL=http://observium.mbixtech.com:8888
-      - TZ=Asia/Bangkok
+      OBSERVIUM_ADMIN_USER: ${OBSERVIUM_ADMIN_USER:-admin}
+      OBSERVIUM_ADMIN_PASS: ${OBSERVIUM_ADMIN_PASS:-passw0rd}
+      OBSERVIUM_DB_HOST: ${OBSERVIUM_DB_HOST:-db}
+      OBSERVIUM_DB_NAME: ${OBSERVIUM_DB_NAME:-observium}
+      OBSERVIUM_DB_USER: ${OBSERVIUM_DB_USER:-observium}
+      OBSERVIUM_DB_PASS: ${OBSERVIUM_DB_PASS:-passw0rd}
+      OBSERVIUM_BASE_URL: ${OBSERVIUM_BASE_URL:-http://observium.local:8888}
+      TZ: ${TZ:-Asia/Bangkok}
     volumes:
-      - ./logs:/opt/observium/logs
-      - ./rrd:/opt/observium/rrd
+      - observium_logs:/opt/observium/logs
+      - observium_rrd:/opt/observium/rrd
     networks:
-      - back-tier
+      - observium_network
     ports:
-      - "8888:80"
-    restart: unless-stopped
+      - "${OBSERVIUM_PORT:-8888}:80"
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+      labels:
+        - "com.docker.stack.namespace=${STACK_NAME:-observium}"
+        - "com.docker.swarm.service.name=observium_app"
     depends_on:
       - db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 networks:
-  back-tier:
-      driver: bridge
+  observium_network:
+    driver: overlay
+    attachable: true
+    labels:
+      - "com.docker.stack.namespace=${STACK_NAME:-observium}"
+
+volumes:
+  observium_mysql_data:
+    # Standard Portainer-compatible volume - no device binding
+    labels:
+      - "com.docker.stack.namespace=${STACK_NAME:-observium}"
+  observium_logs:
+    # Standard Portainer-compatible volume - no device binding
+    labels:
+      - "com.docker.stack.namespace=${STACK_NAME:-observium}"
+  observium_rrd:
+    # Standard Portainer-compatible volume - no device binding
+    labels:
+      - "com.docker.stack.namespace=${STACK_NAME:-observium}"

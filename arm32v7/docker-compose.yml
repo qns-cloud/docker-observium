@@ -1,52 +1,106 @@
-# Example Docker Compose file for Observium
+# Example Docker Compose file for Observium (ARM32v7) - Portainer-ready
 # Maintained by somsakc@hotmail.com
+# Modified for Portainer deployment on Docker Swarm with persistent volumes
+
+version: '3.8'
 
 services:
   observiumdb:
     image: jsurf/rpi-mariadb:latest
     environment:
-      - MYSQL_ROOT_PASSWORD=passw0rd
-      - MYSQL_USER=observium
-      - MYSQL_PASSWORD=passw0rd
-      - MYSQL_DATABASE=observium
-      - TZ=Asia/Bangkok
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-passw0rd}
+      MYSQL_USER: ${MYSQL_USER:-observium}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-passw0rd}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-observium}
+      TZ: ${TZ:-Asia/Bangkok}
     volumes:
-      - ./data:/var/lib/mysql
+      - observium_mysql_data:/var/lib/mysql
     networks:
-      - back-tier
-    restart: unless-stopped
+      - observium_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+      placement:
+        constraints:
+          - node.platform.arch == arm
+      labels:
+        - "com.docker.stack.namespace=${STACK_NAME:-observium-arm32v7}"
+        - "com.docker.swarm.service.name=observium_db"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   observiumap:
-    # Launch published image.
+    # Launch published image
     image: mbixtech/arm32v7-observium:latest
-
-    # Or build image:
+    
+    # Or uncomment to build image:
     # build:
     #   args:
-    #     # Build specific version or "latest".
+    #     # Build specific version or "latest"
     #     # - FETCH_VERSION=24.12
     #     - FETCH_VERSION=latest
-
+    
     environment:
-      - OBSERVIUM_ADMIN_USER=admin
-      - OBSERVIUM_ADMIN_PASS=passw0rd
-      - OBSERVIUM_DB_HOST=observiumdb
-      - OBSERVIUM_DB_NAME=observium
-      - OBSERVIUM_DB_USER=observium
-      - OBSERVIUM_DB_PASS=passw0rd
-      - OBSERVIUM_BASE_URL=http://yourservername:8888
-      - TZ=Asia/Bangkok
+      OBSERVIUM_ADMIN_USER: ${OBSERVIUM_ADMIN_USER:-admin}
+      OBSERVIUM_ADMIN_PASS: ${OBSERVIUM_ADMIN_PASS:-passw0rd}
+      OBSERVIUM_DB_HOST: ${OBSERVIUM_DB_HOST:-observiumdb}
+      OBSERVIUM_DB_NAME: ${OBSERVIUM_DB_NAME:-observium}
+      OBSERVIUM_DB_USER: ${OBSERVIUM_DB_USER:-observium}
+      OBSERVIUM_DB_PASS: ${OBSERVIUM_DB_PASS:-passw0rd}
+      OBSERVIUM_BASE_URL: ${OBSERVIUM_BASE_URL:-http://yourservername:8888}
+      TZ: ${TZ:-Asia/Bangkok}
     volumes:
-      - ./logs:/opt/observium/logs
-      - ./rrd:/opt/observium/rrd
+      - observium_logs:/opt/observium/logs
+      - observium_rrd:/opt/observium/rrd
     networks:
-      - back-tier
+      - observium_network
     ports:
-      - "8888:80"
-    restart: unless-stopped
+      - "${OBSERVIUM_PORT:-8888}:80"
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+      placement:
+        constraints:
+          - node.platform.arch == arm
+      labels:
+        - "com.docker.stack.namespace=${STACK_NAME:-observium-arm32v7}"
+        - "com.docker.swarm.service.name=observium_app"
     depends_on:
       - observiumdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 networks:
-  back-tier:
-    driver: bridge
+  observium_network:
+    driver: overlay
+    attachable: true
+    labels:
+      - "com.docker.stack.namespace=${STACK_NAME:-observium-arm32v7}"
+
+volumes:
+  observium_mysql_data:
+    # Standard Portainer-compatible volume - no device binding
+    labels:
+      - "com.docker.stack.namespace=${STACK_NAME:-observium-arm32v7}"
+  observium_logs:
+    # Standard Portainer-compatible volume - no device binding
+    labels:
+      - "com.docker.stack.namespace=${STACK_NAME:-observium-arm32v7}"
+  observium_rrd:
+    # Standard Portainer-compatible volume - no device binding
+    labels:
+      - "com.docker.stack.namespace=${STACK_NAME:-observium-arm32v7}"
