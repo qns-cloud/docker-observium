@@ -10,11 +10,9 @@ GRANT ALL PRIVILEGES ON `observium`.* TO 'observium'@'%';
 FLUSH PRIVILEGES;
 
 -- Optimized settings are now handled via command line parameters in docker-compose.yml
--- Keeping only settings that don't conflict with command line parameters
+-- Removing all GLOBAL settings that could cause initialization conflicts
 
--- Additional settings to prevent common issues
-SET GLOBAL interactive_timeout=600;
-SET GLOBAL wait_timeout=600;
+-- Note: interactive_timeout and wait_timeout will be configured via my.cnf if needed
 
 -- Create basic maintenance stored procedure
 DELIMITER //

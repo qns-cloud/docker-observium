@@ -7,16 +7,22 @@ version: '3.8'
 services:
   db:
     image: mariadb:11.6
-    command: --max_allowed_packet=64M --transaction-isolation=READ-COMMITTED --binlog-format=ROW --innodb-file-per-table=1 --default-storage-engine=InnoDB
+    command: --max_allowed_packet=64M --skip-name-resolve --transaction-isolation=READ-COMMITTED --binlog-format=ROW --innodb-file-per-table=1 --default-storage-engine=InnoDB
+    init: true
+    tty: true
+    stop_grace_period: 1m
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-passw0rd}
       MYSQL_USER: ${MYSQL_USER:-observium}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-passw0rd}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-observium}
       TZ: ${TZ:-America/Chicago}
+      # Stability configuration
+      MYSQL_INITDB_SKIP_TZINFO: 1
     volumes:
       - observium_mysql_data:/var/lib/mysql
       - observium_mysql_init:/docker-entrypoint-initdb.d
+      - ./mariadb-config/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
     networks:
       - observium_network
     deploy:
@@ -24,17 +30,17 @@ services:
       replicas: 1
       restart_policy:
         condition: any
-        delay: 5s
-        max_attempts: 5
+        delay: 30s
+        max_attempts: 10
       labels:
         - "com.docker.stack.namespace=${STACK_NAME:-observium}"
         - "com.docker.swarm.service.name=observium_db"
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      interval: 60s
+      timeout: 20s
+      retries: 5
+      start_period: 180s
 
   app:
     image: mbixtech/observium:24.12
@@ -60,8 +66,8 @@ services:
       replicas: 1
       restart_policy:
         condition: any
-        delay: 5s
-        max_attempts: 5
+        delay: 30s
+        max_attempts: 10
       labels:
         - "com.docker.stack.namespace=${STACK_NAME:-observium}"
         - "com.docker.swarm.service.name=observium_app"
@@ -70,9 +76,9 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/"]
       interval: 1m
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      timeout: 20s
+      retries: 5
+      start_period: 120s
 
 networks:
   observium_network:
