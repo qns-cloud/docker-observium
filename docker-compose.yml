@@ -38,6 +38,7 @@ services:
 
   app:
     image: mbixtech/observium:24.12
+    entrypoint: ["/bin/bash", "-c", "echo 'Waiting for database to be ready...' && until (echo > /dev/tcp/$$OBSERVIUM_DB_HOST/3306) >/dev/null 2>&1; do sleep 5; echo 'Waiting for database connection...'; done && echo 'Database is reachable!' && sleep 10 && echo 'Waiting for database initialization...' && sleep 20 && echo 'Starting Observium application' && /entrypoint.sh"]
     environment:
       OBSERVIUM_ADMIN_USER: ${OBSERVIUM_ADMIN_USER:-admin}
       OBSERVIUM_ADMIN_PASS: ${OBSERVIUM_ADMIN_PASS:-passw0rd}
