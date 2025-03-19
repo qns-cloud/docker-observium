@@ -6,7 +6,7 @@ version: '3.8'
 
 services:
   db:
-    image: mariadb:11.7
+    image: mariadb:11.6
     command: --max_allowed_packet=64M --transaction-isolation=READ-COMMITTED --binlog-format=ROW --innodb-file-per-table=1 --default-storage-engine=InnoDB
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-passw0rd}

@@ -9,11 +9,8 @@ ALTER DATABASE `observium` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 GRANT ALL PRIVILEGES ON `observium`.* TO 'observium'@'%';
 FLUSH PRIVILEGES;
 
--- Optimize MySQL for Observium
-SET GLOBAL max_allowed_packet=64*1024*1024;
-SET GLOBAL innodb_buffer_pool_size=256*1024*1024;
-SET GLOBAL innodb_log_file_size=64*1024*1024;
-SET GLOBAL innodb_flush_log_at_trx_commit=2;
+-- Optimized settings are now handled via command line parameters in docker-compose.yml
+-- Keeping only settings that don't conflict with command line parameters
 
 -- Additional settings to prevent common issues
 SET GLOBAL interactive_timeout=600;
