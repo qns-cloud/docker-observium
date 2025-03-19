@@ -1,144 +1,133 @@
-# Docker Container for Observium Community Edition
-Observium is network monitoring with intuition. It is a low-maintenance auto-discovering network monitoring platform supporting a wide range of device types, platforms and operating systems including Cisco, Windows, Linux, HP, Juniper, Dell, FreeBSD, Brocade, Netscaler, NetApp and many more. Observium focuses on providing a beautiful and powerful yet simple and intuitive interface to the health and status of your network. For more information, go to http://www.observium.org site.
+# Docker Observium for Swarm with Portainer
 
-Available platforms are:
-* AMD64 (Intel x86_64) https://hub.docker.com/r/mbixtech/observium/
-* ARM32v7 (Raspberri Pi 2/3) https://hub.docker.com/r/mbixtech/arm32v7-observium/
+This repository contains Docker Compose configurations for deploying Observium in a Docker Swarm environment using Portainer. The setup includes persistent volumes for data integrity and has been optimized for stability in a Swarm environment.
 
-## Build Image
-### For amd64 Architecture
-```sh
-   $ cd amd64
-   $ docker build -t mbixtech/observium:latest .
+## Features
+
+- Docker Swarm compatible configurations
+- Persistent volumes for database, logs, and RRD files
+- Portainer-friendly environment variables
+- Support for both AMD64 and ARM32v7 architectures
+- Database stability optimizations
+- Health checks for service monitoring
+- Labeled services and networks for easier management
+
+## Prerequisites
+
+- Docker Swarm cluster
+- Portainer installed on your Swarm
+- Node with sufficient resources for Observium
+
+## Deployment Instructions
+
+### Option 1: Deploy using Portainer UI
+
+1. Log into your Portainer instance
+2. Navigate to Stacks → Add stack
+3. Give your stack a name (e.g., "observium")
+4. Select "Web editor" and paste the contents of `docker-compose.yml`
+5. Enable "Environment variables" and upload the `.env` file or add variables manually
+6. Click "Deploy the stack"
+7. Copy `observium-db-init.sql` to the initialization volume:
+   ```bash
+   docker cp observium-db-init.sql observium_observium_mysql_init:/docker-entrypoint-initdb.d/
+   ```
+
+### Option 2: Deploy using Docker CLI
+
+1. Clone this repository to your Swarm manager node
+2. Deploy the stack:
+   ```bash
+   docker stack deploy -c docker-compose.yml observium
+   ```
+3. Copy the initialization script to the volume:
+   ```bash
+   docker cp observium-db-init.sql observium_observium_mysql_init:/docker-entrypoint-initdb.d/
+   ```
+
+## Architecture-Specific Deployments
+
+### For AMD64 (x86_64) Systems
+
+Use the `amd64/docker-compose.yml` file and set `STACK_NAME=observium-amd64` in the environment variables.
+
+### For ARM32v7 Systems (Raspberry Pi, etc.)
+
+Use the `arm32v7/docker-compose.yml` file and set `STACK_NAME=observium-arm32v7` in the environment variables.
+Also, set `OBSERVIUM_DB_HOST=observiumdb` in the environment variables.
+
+## Persistent Volumes
+
+The stack creates and uses the following volumes for data persistence:
+
+- `observium_mysql_data`: MySQL/MariaDB database files
+- `observium_mysql_init`: Initialization scripts for the database
+- `observium_logs`: Observium application logs
+- `observium_rrd`: RRD files for metrics and graphs
+
+## Database Stability Improvements
+
+The configurations include several improvements to enhance database stability:
+
+1. Optimized MariaDB parameters
+2. Extended startup grace periods
+3. More robust restart policies
+4. Simplified health checks
+5. Initialization script for consistent database setup
+
+## Accessing Observium
+
+Once deployed, access Observium at:
 ```
-- To build a specific version, add `--build-arg FETCH_VERSION=24.12`.
-
-### For arm32v7 Architecture
-```sh
-  $ cd arm32v7
-  $ docker build -t mbixtech/arm32v7-observium:latest .
-```
-
-## Launch Observium
-Either follow the choice A. or B. below to run Observium.
-
-### A. Manual Run Containers
-- Prepare working directory for docker containers, for example below.
-```sh
-  $ mkdir -p /home/docker/observium/{data,logs,rrd}
-```
-- Run official MariaDB container
-```sh
-  $ docker run --name observiumdb \
-    -v /home/docker/observium/data:/var/lib/mysql \
-    -e MYSQL_ROOT_PASSWORD=passw0rd \
-    -e MYSQL_USER=observium \
-    -e MYSQL_PASSWORD=passw0rd \
-    -e MYSQL_DATABASE=observium \
-    -e TZ=$(cat /etc/timezone) \
-    mariadb
-```
-
-- Run this Observium container
-```sh
-  $ docker run --name observiumapp --link observiumdb:observiumdb \
-    -v /home/docker/observium/logs:/opt/observium/logs \
-    -v /home/docker/observium/rrd:/opt/observium/rrd \
-    -e OBSERVIUM_ADMIN_USER=admin \
-    -e OBSERVIUM_ADMIN_PASS=passw0rd \
-    -e OBSERVIUM_DB_HOST=observiumdb \
-    -e OBSERVIUM_DB_USER=observium \
-    -e OBSERVIUM_DB_PASS=passw0rd \
-    -e OBSERVIUM_DB_NAME=observium \
-    -e OBSERVIUM_BASE_URL=http://yourserver.yourdomain:8080 \
-    -e TZ=$(cat /etc/timezone) \
-    -p 8080:80
-    mbixtech/observium:latest
-```
-
-> Note:
-> - You must replace passwords specified in environment parameters of both containers with your secure passwords instead.
-> - Requires a linked MySQL or MariaDB container (ex.: `--link observiumdb:observiumdb`).
-> - `OBSERVIUM_BASE_URL` supports AMD64 container only (plan to support ARM32v7 soon).
-
-### B. Use Docker Compose
-- Follow instuctions below to create extra working directory of docker containers (You can change `/home/docker` directory to your desired directory).
-```sh
-  $ cd /home/docker
-  $ git clone https://github.com/somsakc/docker-observium.git observium
-  $ cd observium
-  $ mkdir data logs mysql
-```
-> Note: You do not need to clone whole git repository. You can download `docker-compose.yml` file and `.env` file file. Then, place both files into e.g. `/home/docker/observium` directory mentioned above.
-
-- Change some environments to your appropreate values in `docker-compose.yml` file, e.g. `OBSERVIUM_ADMIN_USER`, `OBSERVIUM_ADMIN_PASS`.
-
-- Force pulling the latest Observium image from docker hub web site. It is to ensure that you will get the latest one.
-```sh
-  $ docker compose pull
-```
-
-- Run both database and Observium containers.
-```sh
-  $ docker compose up
-```
-
-- For your first time, you may add a new device, discover and poll that device. It is given an idea below (I follow https://docs.observium.org/install_debian/#perform-initial-discovery-and-poll).
-```sh
-  $ docker compose exec app /opt/observium/add_device.php <hostname> <community> v2c
-  $ docker compose exec app /opt/observium/discovery.php -h all
-  $ docker compose exec app /opt/observium/poller.php -h all
+http://your-swarm-node:8888
 ```
 
-## Changes
-- [2025-02-15] Merge pull request [#36](https://github.com/somsakc/docker-observium/pull/36) into master branch
-  - Upgraded base image to Ubuntu 24.04 (amd64/Dockerfile)
-  - Supports running latest Observium 24.12 (amd64/Dockerfile)
-  - Update docker-compose.yml for recommended best practices
-  - Update README.md with build image instructions
-- [2024-01-15] Merge pull request [#35](https://github.com/somsakc/docker-observium/pull/35) into master branch
-  - Fixed TZ parameter in observium-init.sh file
-- [2024-01-14] Merge pull request [#34](https://github.com/somsakc/docker-observium/pull/34) into master branch
-  - Upgraded base image from Ubuntu 20.04 to 22.04 (amd64/Dockerfile)
-  - Upgraded related packages (e.g. php) to match Ubuntu 22.04 and enhanced build code (amd64/Dockerfile)
-  - Revised observium-init.sh file and supported upgarding container to higher Observium version (run "discovery.php -u" whenever container starts)
-  - Fixed warning message caused by supervisord.conf file
-- [2024-01-01] Built docker image with Observium CE 23.9.13005 on AMD64 platform only
-  - Merged pull request [#28](https://github.com/somsakc/docker-observium/pull/28) into master branch
-  - Revised amd64/observium-init.sh file by updating /etc/timezone and /etc/localtime in container image whenever TZ environment is specified. It will effect to rrd graph.
-  - Revised amd64/observium-init.sh file by using MYSQL_PWD variable with mysql command instead
-  - Revised amd64/Dockerfile file to remove mysql-server package
-- [2022-07-17] Built docker image with Observium CE 22.5.12042 on AMD64 platform only
-  - Fixed logrotate missing in amd64/Dockerfile
-  - Added libphp-phpmailer package in amd64/Dockerfile
-- [2021-11-01] Built docker image with Observium CE 21.10.11666 on AMD64 platform only
-  - Added monitoring-plugins-basic, monitoring-plugins-common and monitoring-plugins-standard packages
-- [2021-08-26] Built docker image with Observium CE 20.9.10731 on AMD64 platform only
-  - Upgraded base image to ubuntu:20.04
-  - Upgraded package to higher version with following Observium installation document, e.g. php-7.4
-  - Revised docker-compose.yml file and add .env file for specific project name (see source repository below)
-- [2020-02-16] Enhanced docker image with Observium CE 19.8.10000
-  - Revised initial/kickstart script for first time of container running with more information about database initialization.
-  - Moved Apache http access and error logs to /opt/observium/logs directory.
-  - Added logs of all cron jobs storing in /opt/observium/logs directory. 
-  - Added logrotate for rotating logs in /opt/observium/logs directory.
-  - Chnaged working directory of container image to /opt/observium for ease of managing Observium inside.
-  - Fixed invalid cron parameter specified in supervisord.conf.
-  - Revised Dockerfile file.
-- [2018-10-28] Added 'Feature request: OBSERVIUM_BASE_URL #3' feature.
-- [2017-08-19] Corrected error of "DB Error 1044: Access denied for user 'observium'@'%' to database 'observium'" by replacing MYSQL_DB_NAME environment variable of database container with MYSQL_DATABASE instead (regarding environment definition changed by official mariadb image).
-- [2017-08-19] Add Observium image available on Raspberri Pi 2/3 (arm32v7) platform.
+Default login credentials:
+- Username: admin
+- Password: passw0rd
 
-## Source Repository
-See source of project at https://github.com/somsakc/observium
+Change these credentials in the `.env` file before deployment for security.
 
-## TODOs
-I have a lot of plan to enhance this project. However, my work is priority to focus first. I hope I will have more time to do it.
-- Enhance more on Kubernetes platform, for both AMD64 and ARM64 (Pi).
-- Enhance more with secure TLS to Observium GUI.
-- Secure more container image.
-- Integrate rsyslog [2022/Q3]
+## Troubleshooting
 
-## Credits
-- Official Observium web site [https://www.observium.org]
-- Ubuntu installation from Observium web site [https://docs.observium.org/install_debian/]
+### Database Connection Issues
+
+If the app service cannot connect to the database:
+
+1. Check the database service logs:
+   ```bash
+   docker service logs observium_db
+   ```
+
+2. Verify the database container is running:
+   ```bash
+   docker service ps observium_db
+   ```
+
+3. Ensure the initialization script was properly copied to the volume.
+
+### Architecture Mismatch
+
+If you see errors about architecture compatibility:
+
+1. Make sure you're using the correct docker-compose file for your architecture
+2. Verify your node architecture with:
+   ```bash
+   docker node inspect self --format '{{.Description.Platform.Architecture}}'
+   ```
+
+## Maintenance
+
+### Database Optimization
+
+The database includes a stored procedure for optimization:
+
+```sql
+CALL observium.optimize_tables();
+```
+
+You can run this periodically to maintain database performance.
+
+## License
+
+See the [LICENSE](LICENSE) file for licensing information.

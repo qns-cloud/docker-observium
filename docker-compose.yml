@@ -7,31 +7,34 @@ version: '3.8'
 services:
   db:
     image: mariadb:11.7
+    command: --max_allowed_packet=64M --transaction-isolation=READ-COMMITTED --binlog-format=ROW --innodb-file-per-table=1 --default-storage-engine=InnoDB
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-passw0rd}
       MYSQL_USER: ${MYSQL_USER:-observium}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-passw0rd}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-observium}
-      TZ: ${TZ:-Asia/Bangkok}
+      TZ: ${TZ:-America/Chicago}
     volumes:
       - observium_mysql_data:/var/lib/mysql
+      - observium_mysql_init:/docker-entrypoint-initdb.d
     networks:
       - observium_network
     deploy:
       mode: replicated
       replicas: 1
       restart_policy:
-        condition: on-failure
-        max_attempts: 3
+        condition: any
+        delay: 5s
+        max_attempts: 5
       labels:
         - "com.docker.stack.namespace=${STACK_NAME:-observium}"
         - "com.docker.swarm.service.name=observium_db"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 30s
+      retries: 3
+      start_period: 60s
 
   app:
     image: mbixtech/observium:24.12
@@ -43,7 +46,7 @@ services:
       OBSERVIUM_DB_USER: ${OBSERVIUM_DB_USER:-observium}
       OBSERVIUM_DB_PASS: ${OBSERVIUM_DB_PASS:-passw0rd}
       OBSERVIUM_BASE_URL: ${OBSERVIUM_BASE_URL:-http://observium.local:8888}
-      TZ: ${TZ:-Asia/Bangkok}
+      TZ: ${TZ:-America/Chicago}
     volumes:
       - observium_logs:/opt/observium/logs
       - observium_rrd:/opt/observium/rrd
@@ -55,8 +58,9 @@ services:
       mode: replicated
       replicas: 1
       restart_policy:
-        condition: on-failure
-        max_attempts: 3
+        condition: any
+        delay: 5s
+        max_attempts: 5
       labels:
         - "com.docker.stack.namespace=${STACK_NAME:-observium}"
         - "com.docker.swarm.service.name=observium_app"
@@ -67,7 +71,7 @@ services:
       interval: 1m
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
 
 networks:
   observium_network:
@@ -78,14 +82,22 @@ networks:
 
 volumes:
   observium_mysql_data:
-    # Standard Portainer-compatible volume - no device binding
+    # Standard Portainer-compatible volume for MySQL data
+    driver: local
+    labels:
+      - "com.docker.stack.namespace=${STACK_NAME:-observium}"
+  observium_mysql_init:
+    # Volume for MySQL initialization scripts
+    driver: local
     labels:
       - "com.docker.stack.namespace=${STACK_NAME:-observium}"
   observium_logs:
-    # Standard Portainer-compatible volume - no device binding
+    # Standard Portainer-compatible volume for Observium logs
+    driver: local
     labels:
       - "com.docker.stack.namespace=${STACK_NAME:-observium}"
   observium_rrd:
-    # Standard Portainer-compatible volume - no device binding
+    # Standard Portainer-compatible volume for Observium RRD files
+    driver: local
     labels:
       - "com.docker.stack.namespace=${STACK_NAME:-observium}"
